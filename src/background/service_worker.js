@@ -4,6 +4,8 @@ import { FlowError, toSafeError } from "../shared/errors.js";
 const NAVAN_UPLOAD_RECEIPTS_URL = "https://app.navan.com/app/liquid/user/transactions/upload-receipts";
 const LOGIN_CACHE_KEY = "provider_login_cache_v1";
 const LOGIN_CACHE_CLEANUP_ALARM = "orange_login_cache_cleanup";
+const UPDATE_STATUS_KEY = "manifest_update_status_v1";
+const REPO_MANIFEST_URL = "https://raw.githubusercontent.com/MrCerise/dataiku-navan/main/manifest.json";
 const UPLOAD_ACTION_TIMEOUT_MS = 120_000;
 const PROVIDER_CONFIGS = {
   orange_provider: {
@@ -34,22 +36,18 @@ const PROVIDER_CONFIGS = {
 
 chrome.alarms.create(LOGIN_CACHE_CLEANUP_ALARM, { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm?.name !== LOGIN_CACHE_CLEANUP_ALARM) return;
-  await clearExpiredLoginCache();
+  if (alarm?.name === LOGIN_CACHE_CLEANUP_ALARM) {
+    await clearExpiredLoginCache();
+  }
 });
+void initializeUpdateStatus();
 
 const stateOrder = [
   FlowState.OPEN_ORANGE_LOGIN,
   FlowState.AUTH_ORANGE,
   FlowState.NAVIGATE_ORANGE_BILLING,
   FlowState.DOWNLOAD_OR_SELECT_BILL,
-  FlowState.OPEN_NAVAN,
-  FlowState.WAIT_FOR_USER_GOOGLE_SSO,
-  FlowState.OPEN_LIQUID_HOME,
-  FlowState.CLICK_NEW_TRANSACTION,
-  FlowState.UPLOAD_DOCUMENT,
-  FlowState.REVIEW_AND_CONFIRM,
-  FlowState.DONE
+  FlowState.OPEN_NAVAN
 ];
 
 const flowContext = {
@@ -66,7 +64,8 @@ const flowContext = {
   waitingReason: null,
   providerLoginWatcher: null,
   inactivityTimer: null,
-  startedAt: null
+  startedAt: null,
+  updateStatus: null
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -84,6 +83,8 @@ async function handleMessage(message) {
       return resumeFlow();
     case MessageType.GET_STATUS:
       return { ok: true, data: getStatus() };
+    case MessageType.CHECK_UPDATES:
+      return { ok: true, data: await checkManifestUpdate(true) };
     default:
       return { ok: false, error: { code: ErrorCode.UNKNOWN, message: "Unsupported message type" } };
   }
@@ -135,7 +136,8 @@ function getStatus() {
     events: flowContext.events.slice(-20),
     waitingForUser: flowContext.waitingForUser,
     error: flowContext.error,
-    startedAt: flowContext.startedAt
+    startedAt: flowContext.startedAt,
+    updateStatus: flowContext.updateStatus
   };
 }
 
@@ -229,10 +231,12 @@ async function runStep(state) {
         flowContext.waitingForUser = false;
         flowContext.waitingReason = null;
         emitEvent(FlowState.OPEN_NAVAN, FlowStatus.SUCCESS, "Navan session already active, skipping SSO checkpoint");
+        flowContext.state = FlowState.DONE;
+        emitEvent(FlowState.DONE, FlowStatus.SUCCESS, "Flow completed after opening Navan");
       } catch (_error) {
         flowContext.waitingForUser = true;
         flowContext.waitingReason = "NAVAN_SSO";
-        emitEvent(FlowState.WAIT_FOR_USER_GOOGLE_SSO, FlowStatus.WAITING_USER, "Complete Google SSO in Navan, then click Resume");
+        emitEvent(FlowState.WAIT_FOR_USER_GOOGLE_SSO, FlowStatus.WAITING_USER, "Complete Google SSO in Navan, then click Resume to finish");
       }
       return;
     case FlowState.WAIT_FOR_USER_GOOGLE_SSO:
@@ -554,4 +558,69 @@ function normalizeProviderId(provider) {
   const value = String(provider || "").trim();
   if (value === "freemobile_provider") return "free_mobile_provider";
   return value;
+}
+
+async function initializeUpdateStatus() {
+  const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
+  flowContext.updateStatus = result?.[UPDATE_STATUS_KEY] || null;
+}
+
+async function checkManifestUpdate(force) {
+  const current = flowContext.updateStatus;
+  if (!force && current?.lastCheckedAt && Date.now() - current.lastCheckedAt < 5 * 60_000) {
+    return current;
+  }
+
+  const localVersion = chrome.runtime.getManifest()?.version || "0.0.0";
+  try {
+    const response = await fetch(REPO_MANIFEST_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const remoteManifest = await response.json();
+    const remoteVersion = String(remoteManifest?.version || "").trim();
+    if (!remoteVersion) {
+      throw new Error("Remote manifest has no version");
+    }
+
+    const status = {
+      checked: true,
+      updateAvailable: compareVersions(remoteVersion, localVersion) > 0,
+      localVersion,
+      remoteVersion,
+      source: REPO_MANIFEST_URL,
+      error: null,
+      lastCheckedAt: Date.now()
+    };
+
+    flowContext.updateStatus = status;
+    await chrome.storage.local.set({ [UPDATE_STATUS_KEY]: status });
+    return status;
+  } catch (error) {
+    const status = {
+      checked: true,
+      updateAvailable: false,
+      localVersion,
+      remoteVersion: current?.remoteVersion || null,
+      source: REPO_MANIFEST_URL,
+      error: String(error?.message || error),
+      lastCheckedAt: Date.now()
+    };
+    flowContext.updateStatus = status;
+    await chrome.storage.local.set({ [UPDATE_STATUS_KEY]: status });
+    return status;
+  }
+}
+
+function compareVersions(a, b) {
+  const left = String(a).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = String(b).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const len = Math.max(left.length, right.length);
+  for (let i = 0; i < len; i += 1) {
+    const l = left[i] || 0;
+    const r = right[i] || 0;
+    if (l > r) return 1;
+    if (l < r) return -1;
+  }
+  return 0;
 }

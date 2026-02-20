@@ -6,6 +6,7 @@ const LOGIN_CACHE_TTL_MS = 30 * 60 * 1000;
 const startButton = document.getElementById("startFlow");
 const resumeButton = document.getElementById("resumeFlow");
 const statusLine = document.getElementById("statusLine");
+const updateStatusLine = document.getElementById("updateStatus");
 const eventLog = document.getElementById("eventLog");
 const instructionBanner = document.getElementById("instructionBanner");
 const UsernameInput = document.getElementById("Username");
@@ -84,6 +85,7 @@ function renderResponse(response) {
 
   const data = response.data;
   statusLine.textContent = `${data.state} (${data.status})`;
+  renderUpdateStatus(data.updateStatus);
 
   resumeButton.disabled = !data.waitingForUser;
   updateInstructionBanner(data);
@@ -93,6 +95,23 @@ function renderResponse(response) {
     .slice(-8)
     .map((event) => `${event.timestamp} | ${event.state} | ${event.status} | ${event.details || ""}`)
     .join("\n");
+}
+
+function renderUpdateStatus(updateStatus) {
+  if (!updateStatusLine) return;
+  if (!updateStatus || !updateStatus.checked) {
+    updateStatusLine.textContent = "Update check: pending";
+    return;
+  }
+  if (updateStatus.error) {
+    updateStatusLine.textContent = `Update check failed (${updateStatus.error})`;
+    return;
+  }
+  if (updateStatus.updateAvailable) {
+    updateStatusLine.textContent = `Update available: ${updateStatus.remoteVersion} (current ${updateStatus.localVersion})`;
+    return;
+  }
+  updateStatusLine.textContent = `Up to date (${updateStatus.localVersion})`;
 }
 
 function sendMessage(message) {
@@ -128,6 +147,7 @@ function updateInstructionBanner(data) {
 
 async function initPopup() {
   await loadLoginCacheIntoForm();
+  await sendMessage({ type: MessageType.CHECK_UPDATES });
   await pollStatus();
 }
 

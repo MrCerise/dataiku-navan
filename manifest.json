@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Internet Provider to Navan Billing Assistant",
   "description": "Guided automation from Internet Provider billing download to Navan transaction draft. By le J",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "permissions": ["storage", "scripting", "tabs", "activeTab", "alarms"],
   "host_permissions": [
     "https://www.orange.com/*",
@@ -13,7 +13,8 @@
     "https://*.bouyguestelecom.fr/*",
     "https://*.free.fr/*",
     "https://app.navan.com/*",
-    "https://accounts.google.com/*"
+    "https://accounts.google.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
   "background": {
     "service_worker": "src/background/service_worker.js",

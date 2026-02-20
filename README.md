@@ -1,8 +1,8 @@
-# Orange to Navan Chrome Extension (MV3)
+# Internet Provider to Navan Chrome Extension (MV3)
 
 Private unpacked Chrome extension that:
-1. Prompts Orange credentials at runtime.
-2. Logs into Orange and navigates billing.
+1. Prompts credentials at runtime.
+2. Logs in and navigates billing.
 3. Downloads/extracts the billing document file.
 4. Opens Navan and pauses for user Google SSO.
 5. Navigates to Liquid home and clicks `New Transaction`.
@@ -20,7 +20,7 @@ Private unpacked Chrome extension that:
 3. Click **Load unpacked** and select this repo folder.
 4. Pin extension and open popup.
 5. Enter Orange credentials, choose **Home internet** or **Mobile internet**, then click **Start Flow**.
-6. If Orange shows a captcha, solve it in the Orange tab then click **Resume**.
+6. If it shows a captcha, solve it then click **Resume**.
 7. Complete Google SSO in Navan when prompted, then click **Resume**.
 
 ## Notes
@@ -31,3 +31,11 @@ Private unpacked Chrome extension that:
 ```bash
 npm test
 ```
+
+# Todo List
+[ ] - Fix the Free mobile SMS system that can break
+[ ] - Add Bouygues
+[ ] - Add SFR
+[X] - Add Orange
+[X] - Add RedBySFR
+[X] - Add Free

@@ -33,9 +33,9 @@ npm test
 ```
 
 # Todo List
-[ ] - Fix the Free mobile SMS system that can break
-[ ] - Add Bouygues
-[ ] - Add SFR
-[X] - Add Orange
-[X] - Add RedBySFR
-[X] - Add Free
+- [ ] - Fix the Free mobile SMS system that can break
+- [ ] - Add Bouygues
+- [ ] - Add SFR
+- [x] - Add Orange
+- [x] - Add RedBySFR
+- [x] - Add Free
